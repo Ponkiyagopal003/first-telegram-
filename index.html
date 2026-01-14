@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Speed Match</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: sans-serif; background-color: #222; color: white; text-align: center; overflow: hidden; }
+        #game-container { display: none; margin-top: 50px; }
+        .tile { width: 100px; height: 100px; border-radius: 10px; display: inline-block; margin: 10px; cursor: pointer; transition: transform 0.1s; }
+        .tile:active { transform: scale(0.95); }
+        #target-color { width: 150px; height: 150px; margin: 0 auto 20px; border-radius: 50%; border: 4px solid #fff; }
+        h1 { margin-top: 20px; }
+        button { padding: 15px 30px; font-size: 18px; border: none; border-radius: 8px; background: #3498db; color: white; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="menu">
+        <h1>Speed Match</h1>
+        <p>Tap the matching color before time runs out!</p>
+        <button onclick="startGame()">Play Now</button>
+    </div>
+
+    <div id="game-container">
+        <h3>Score: <span id="score">0</span></h3>
+        <div id="target-color"></div>
+        <div id="options"></div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Make app full screen
+
+        let score = 0;
+        let timer;
+        const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
+
+        function startGame() {
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            score = 0;
+            updateScore();
+            nextRound();
+        }
+
+        function nextRound() {
+            // Pick a random target color
+            const target = colors[Math.floor(Math.random() * colors.length)];
+            document.getElementById('target-color').style.backgroundColor = target;
+            
+            // Create buttons
+            const container = document.getElementById('options');
+            container.innerHTML = '';
+            
+            // Shuffle colors for buttons
+            const shuffled = [...colors].sort(() => 0.5 - Math.random());
+            
+            shuffled.forEach(color => {
+                const btn = document.createElement('div');
+                btn.className = 'tile';
+                btn.style.backgroundColor = color;
+                btn.onclick = () => checkAnswer(color, target);
+                container.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selected, target) {
+            if (selected === target) {
+                score++;
+                updateScore();
+                nextRound();
+            } else {
+                gameOver();
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('score').innerText = score;
+        }
+
+        function gameOver() {
+            // Use Telegram's native popup for better UX
+            tg.showPopup({
+                title: 'Game Over!',
+                message: `You scored ${score} points.`,
+                buttons: [{type: 'ok', text: 'Try Again'}]
+            }, () => {
+                startGame();
+            });
+            
+            // Send data back to bot (optional advanced step)
+            tg.sendData(JSON.stringify({score: score}));
+        }
+    </script>
+</body>
+</html>
