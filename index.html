@@ -2,96 +2,171 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Project Mnemosyne</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
-        /* --- CYBERPUNK THEME --- */
-        :root { --bg: #050505; --text: #00ff41; --fail: #ff003c; --ui: #1a1a1a; }
-        body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        /* --- CORE THEME --- */
+        :root { --bg: #050505; --text: #00ff41; --fail: #ff003c; --ui: #1a1a1a; --font: 'VT323', monospace; }
         
-        /* LAYOUT */
-        #crt-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            background-size: 100% 2px, 3px 100%; pointer-events: none; z-index: 99;
+        body { 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: var(--font); 
+            margin: 0; 
+            overflow: hidden; 
+            height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            font-size: 20px; /* Base size */
         }
-        
-        .screen { display: none; height: 100%; flex-direction: column; padding: 20px; box-sizing: border-box; }
+
+        /* --- RESPONSIVE CONTAINER (Mobile vs Laptop) --- */
+        #app-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            overflow: hidden;
+        }
+
+        /* Laptop/Tablet Mode: Center the game like a phone */
+        @media (min-width: 768px) {
+            #app-container {
+                max-width: 450px;
+                max-height: 90vh;
+                border: 2px solid var(--ui);
+                box-shadow: 0 0 50px rgba(0, 255, 65, 0.1);
+                border-radius: 20px;
+            }
+            body { background: #111; } /* Darker background for laptop outside game */
+        }
+
+        /* --- CRT OVERLAY (High Graphics Only) --- */
+        #crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%; pointer-events: none; z-index: 999;
+        }
+        /* Low Graphics Mode: Hide CRT */
+        body.low-gfx #crt-overlay { display: none; }
+        body.low-gfx * { text-shadow: none !important; box-shadow: none !important; }
+
+        /* --- SCREENS --- */
+        .screen { display: none; flex: 1; flex-direction: column; padding: 20px; box-sizing: border-box; width: 100%; }
         .active { display: flex; }
         .center { justify-content: center; align-items: center; text-align: center; }
 
-        /* UI ELEMENTS */
-        h1 { text-shadow: 0 0 10px var(--text); margin-bottom: 5px; }
-        .stat-bar { display: flex; justify-content: space-between; padding: 10px; background: var(--ui); border-bottom: 1px solid var(--text); }
-        .dialogue-box { 
-            background: rgba(0,20,0,0.9); border: 1px solid var(--text); padding: 15px; 
-            margin-top: auto; min-height: 150px; font-size: 16px; line-height: 1.5; 
-            box-shadow: 0 0 15px rgba(0,255,65,0.2); cursor: pointer;
-        }
+        /* --- UI ELEMENTS --- */
+        h1 { text-shadow: 0 0 10px var(--text); font-size: 32px; letter-spacing: 2px; margin: 10px 0; }
+        
         .btn {
-            background: transparent; border: 1px solid var(--text); color: var(--text);
-            padding: 15px; margin: 10px 0; width: 100%; max-width: 300px;
-            font-family: inherit; font-size: 18px; cursor: pointer;
-            transition: 0.2s; text-transform: uppercase;
+            background: rgba(0, 255, 65, 0.05); border: 1px solid var(--text); color: var(--text);
+            padding: 12px; margin: 8px 0; width: 100%; font-family: inherit; font-size: 22px; cursor: pointer;
+            text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;
         }
         .btn:hover { background: var(--text); color: black; }
-        .btn:disabled { opacity: 0.3; pointer-events: none; }
-
-        /* PUZZLE AREA */
-        #game-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
-        #prompt-display { font-size: 40px; font-weight: bold; margin-bottom: 30px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 350px; }
-        .tile { height: 100px; border-radius: 5px; border: 2px solid #333; transition: transform 0.1s; }
-        .tile:active { transform: scale(0.95); }
-
-        /* ANIMATIONS */
-        @keyframes glitch { 
-            0% { transform: translate(0) } 20% { transform: translate(-2px, 2px) } 
-            40% { transform: translate(-2px, -2px) } 60% { transform: translate(2px, 2px) } 
-            80% { transform: translate(2px, -2px) } 100% { transform: translate(0) }
+        
+        /* TEXT FIX: Ensures text stays on screen and wraps correctly */
+        .dialogue-box { 
+            background: rgba(0,20,0,0.95); border: 1px solid var(--text); padding: 20px; 
+            margin-top: auto; min-height: 180px; 
+            font-size: 24px; line-height: 1.4; 
+            box-shadow: 0 0 15px rgba(0,255,65,0.2); 
+            cursor: pointer;
+            white-space: pre-wrap; /* Preserves spaces but wraps text */
+            word-wrap: break-word; /* Prevents long words breaking layout */
+            overflow-y: auto;
         }
-        .glitch-text { animation: glitch 0.3s infinite; color: var(--fail); }
+
+        /* --- SETTINGS UI --- */
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 22px; }
+        select, input[type=range] { background: #000; color: var(--text); border: 1px solid var(--text); font-family: inherit; font-size: 18px; padding: 5px; }
+        
+        /* --- GAMEPLAY --- */
+        #game-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 300px; }
+        .tile { height: 90px; border-radius: 5px; border: 2px solid #333; }
+        
     </style>
 </head>
 <body>
 
-    <div id="crt-overlay"></div>
+    <div id="app-container">
+        <div id="crt-overlay"></div>
 
-    <div id="screen-menu" class="screen center active">
-        <h1>PROJECT MNEMOSYNE</h1>
-        <p>SYSTEM STATUS: CRITICAL</p>
-        <p>SUBJECT: HUMAN ZERO</p>
-        <br>
-        <button class="btn" onclick="startGame()">INITIALIZE REPAIR</button>
-        <button class="btn" onclick="resetData()">WIPE DATA</button>
-    </div>
-
-    <div id="screen-story" class="screen" onclick="advanceStory()">
-        <div style="flex:1;"></div> <div class="dialogue-box">
-            <b id="speaker-name">SYSTEM:</b><br>
-            <span id="story-text">...</span>
-            <div style="text-align: right; font-size: 12px; margin-top: 10px;">[TAP TO CONTINUE]</div>
+        <div id="screen-menu" class="screen center active">
+            <h1>MNEMOSYNE</h1>
+            <p id="menu-status">SYSTEM STATUS: CRITICAL</p>
+            <br>
+            <button class="btn center" onclick="startGame()"><span data-t="start">START GAME</span></button>
+            <button class="btn center" onclick="showSettings()"><span data-t="settings">SETTINGS</span></button>
         </div>
-    </div>
 
-    <div id="screen-map" class="screen">
-        <div class="stat-bar">
-            <span>DATA: <span id="ui-data">0</span>%</span>
-            <span>DAY: <span id="ui-day">1</span></span>
-        </div>
-        <h2 style="text-align: center;">MEMORY BANKS</h2>
-        <div id="level-list" style="overflow-y: auto; flex: 1;"></div>
-    </div>
+        <div id="screen-settings" class="screen">
+            <h2 data-t="settings">SETTINGS</h2>
+            
+            <div class="setting-row">
+                <span data-t="lang">Language</span>
+                <select id="set-lang" onchange="changeLanguage(this.value)">
+                    <option value="en">English</option>
+                    <option value="ru">Russian</option>
+                    <option value="hi">Hindi</option>
+                    <option value="gu">Gujarati</option>
+                    <option value="jp">Japanese</option>
+                </select>
+            </div>
 
-    <div id="screen-game" class="screen">
-        <div class="stat-bar">
-            <span>TIMER: <span id="ui-timer">0.0</span>s</span>
-            <span>REQ: <span id="ui-req">0</span></span>
+            <div class="setting-row">
+                <span data-t="graphics">Graphics</span>
+                <select id="set-gfx" onchange="changeGraphics(this.value)">
+                    <option value="high">High (CRT)</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low (Fast)</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <span data-t="audio">Audio Vol</span>
+                <span id="vol-display">10</span>
+            </div>
+            <input type="range" min="0" max="15" value="10" style="width: 100%;" oninput="changeVolume(this.value)">
+
+            <div class="setting-row" style="margin-top: 20px;">
+                <span data-t="scale">UI Scale</span>
+                <select onchange="changeScale(this.value)">
+                    <option value="0.8">Small</option>
+                    <option value="1.0" selected>Normal</option>
+                    <option value="1.2">Large</option>
+                </select>
+            </div>
+
+            <div style="flex:1"></div>
+            <button class="btn center" onclick="showScreen('screen-menu')"><span data-t="back">BACK</span></button>
         </div>
-        <div id="game-area">
-            <div id="prompt-display">READY</div>
-            <div id="options-container" class="grid-2"></div>
+
+        <div id="screen-story" class="screen" onclick="advanceStory()">
+            <div style="flex:1;"></div>
+            <div class="dialogue-box">
+                <b id="speaker-name" style="color: #fff;">SYSTEM:</b><br><br>
+                <span id="story-text"></span>
+                <div style="text-align: right; font-size: 16px; margin-top: 15px; opacity: 0.7;" class="blink">[TAP]</div>
+            </div>
+        </div>
+
+        <div id="screen-game" class="screen">
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; padding-bottom:5px;">
+                <span id="ui-timer">0.0s</span>
+                <span id="ui-req">0</span>
+            </div>
+            <div id="game-area">
+                <div id="prompt-display" style="font-size: 40px; margin-bottom: 20px;">READY</div>
+                <div id="options-container" class="grid-2"></div>
+            </div>
         </div>
     </div>
 
@@ -99,274 +174,165 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // --- GAME CONTENT (THIS IS WHERE YOU ADD THE 45 MINUTES OF STORY) ---
-        // To make it long, add more 'chapters' here.
-        const STORY_DATA = [
-            {
-                id: 1,
-                title: "Boot Sequence",
-                type: "story",
-                speaker: "AI SYSTEM",
-                text: ["Connection established.", "Subject Zero's vitals are fading.", "Memory cortex is 90% corrupted.", "I must manually reroute the neural pathways to save them."]
-            },
-            {
-                id: 2,
-                title: "Basic Motor Skills",
-                type: "puzzle",
-                mode: "match", // Simple color match
-                speed: 2000,
-                rounds: 5,
-                reward: 10
-            },
-            {
-                id: 3,
-                title: "The First Memory",
-                type: "story",
-                speaker: "SUBJECT ZERO",
-                text: ["Who... who is there?", "It's so cold.", "I remember... a blue sky. But the sky hasn't been blue for years.", "Why am I remembering a lie?"]
-            },
-            {
-                id: 4,
-                title: "Cognitive Dissonance",
-                type: "puzzle",
-                mode: "stroop", // TRICKY: Text says RED, Color is BLUE
-                speed: 3000,
-                rounds: 8,
-                reward: 15
-            },
-            {
-                id: 5,
-                title: "System Failure",
-                type: "story",
-                speaker: "AI SYSTEM",
-                text: ["Warning. Subject is rejecting the memory.", "Heart rate increasing.", "The memory of the sky is triggered by trauma.", "Injecting stabilizer..."]
-            },
-            {
-                id: 6,
-                title: "Pattern Lock",
-                type: "puzzle",
-                mode: "sequence", // Simon Says Style
-                speed: 1000,
-                rounds: 4, // 4 sequences
-                reward: 20
-            },
-            // --- ADD 50 MORE LEVELS HERE TO MAKE IT 45 MINS ---
-            {
-                id: 7,
-                title: "The Truth",
-                type: "story",
-                speaker: "SUBJECT ZERO",
-                text: ["It wasn't a lie.", "The sky was blue because we built the dome.", "But I... I broke the glass.", "I killed them all, didn't I?"]
-            }
-        ];
-
-        // --- STATE MANAGEMENT ---
-        let playerState = {
-            currentLevelIndex: 0,
-            dataPoints: 0
+        // --- TRANSLATION DATA ---
+        const LANG_DATA = {
+            en: { start: "INITIALIZE", settings: "SETTINGS", lang: "LANGUAGE", graphics: "GRAPHICS", audio: "AUDIO", scale: "UI SCALE", back: "BACK" },
+            ru: { start: "НАЧАТЬ", settings: "НАСТРОЙКИ", lang: "ЯЗЫК", graphics: "ГРАФИКА", audio: "ЗВУК", scale: "МАСШТАБ", back: "НАЗАД" },
+            hi: { start: "начать", settings: "настройки", lang: "भाषा", graphics: "ग्राफिक्स", audio: "आवाज़", scale: "स्केल", back: "वापस" },
+            gu: { start: "શરૂઆત", settings: "સેટિંગ્સ", lang: "ભાષા", graphics: "ગ્રાફિક્સ", audio: "અવાજ", scale: "માપ", back: "પાછા" },
+            jp: { start: "開始", settings: "設定", lang: "言語", graphics: "グラフィックス", audio: "オーディオ", scale: "規模", back: "戻る" }
         };
 
-        // --- ENGINE ---
-        function startGame() {
-            if(localStorage.getItem('mnemosyne_save')) {
-                playerState = JSON.parse(localStorage.getItem('mnemosyne_save'));
-            }
-            loadLevel(playerState.currentLevelIndex);
+        // --- SETTINGS STATE ---
+        let settings = { lang: 'en', gfx: 'high', vol: 10, scale: 1.0 };
+        
+        function loadSettings() {
+            const saved = localStorage.getItem('mnemosyne_settings');
+            if(saved) settings = JSON.parse(saved);
+            
+            // Apply loaded settings
+            document.getElementById('set-lang').value = settings.lang;
+            document.getElementById('set-gfx').value = settings.gfx;
+            changeGraphics(settings.gfx);
+            updateLangUI();
         }
 
-        function saveGame() {
-            localStorage.setItem('mnemosyne_save', JSON.stringify(playerState));
+        function saveSettings() {
+            localStorage.setItem('mnemosyne_settings', JSON.stringify(settings));
         }
 
-        function resetData() {
-            localStorage.clear();
-            location.reload();
+        // --- SETTINGS LOGIC ---
+        function showSettings() { showScreen('screen-settings'); }
+        
+        function changeLanguage(code) {
+            settings.lang = code;
+            saveSettings();
+            updateLangUI();
         }
+        
+        function updateLangUI() {
+            document.querySelectorAll('[data-t]').forEach(el => {
+                const key = el.getAttribute('data-t');
+                if(LANG_DATA[settings.lang][key]) {
+                    el.innerText = LANG_DATA[settings.lang][key];
+                }
+            });
+        }
+
+        function changeGraphics(mode) {
+            settings.gfx = mode;
+            saveSettings();
+            document.body.className = (mode === 'low') ? 'low-gfx' : '';
+            if(mode === 'medium') document.getElementById('crt-overlay').style.opacity = '0.3';
+            else document.getElementById('crt-overlay').style.opacity = '1';
+        }
+
+        function changeVolume(val) {
+            settings.vol = val;
+            document.getElementById('vol-display').innerText = val;
+            saveSettings();
+        }
+
+        function changeScale(val) {
+            document.body.style.fontSize = (20 * val) + 'px';
+        }
+
+        // --- GAME LOGIC (Restored from previous version) ---
+        const STORY_DATA = [
+            { id: 1, type: "story", speaker: "SYSTEM", text: ["Connection established...", "Subject Zero vitals: Critical.", "Memory banks corrupted."] },
+            { id: 2, type: "puzzle", mode: "match", speed: 2000, rounds: 3 },
+            { id: 3, type: "story", speaker: "ZERO", text: ["I remember... a blue sky.", "But the sky hasn't been blue for years.", "Why am I remembering a lie?"] }
+        ];
+
+        let state = { level: 0 };
+        let currentStoryText = [];
+        let storyIndex = 0;
 
         function showScreen(id) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(id).classList.add('active');
         }
 
-        // --- STORY ENGINE ---
-        let currentStoryLines = [];
-        let storyLineIndex = 0;
+        function startGame() { state.level = 0; loadLevel(); }
 
-        function loadLevel(index) {
-            if (index >= STORY_DATA.length) {
-                alert("STORY COMPLETE. THANKS FOR PLAYING.");
-                return;
-            }
+        function loadLevel() {
+            if(state.level >= STORY_DATA.length) { alert("DEMO COMPLETE"); return; }
+            const data = STORY_DATA[state.level];
             
-            const level = STORY_DATA[index];
-            
-            if (level.type === 'story') {
-                currentStoryLines = level.text;
-                storyLineIndex = 0;
-                document.getElementById('speaker-name').innerText = level.speaker + ":";
+            if(data.type === 'story') {
+                currentStoryText = data.text;
+                storyIndex = 0;
+                document.getElementById('speaker-name').innerText = data.speaker + ":";
                 showScreen('screen-story');
-                renderStoryText();
+                typeText(currentStoryText[0]);
             } else {
-                startPuzzle(level);
+                startPuzzle(data);
             }
         }
 
-        function renderStoryText() {
-            const txt = currentStoryLines[storyLineIndex];
+        // FIXED TYPEWRITER EFFECT
+        function typeText(txt) {
             const el = document.getElementById('story-text');
-            el.innerText = "";
+            el.innerHTML = ""; // Clear
             let i = 0;
-            // Typewriter effect
-            const typeTimer = setInterval(() => {
-                el.innerText += txt.charAt(i);
+            // Faster typing (20ms) and ensuring spaces are preserved
+            const timer = setInterval(() => {
+                el.textContent += txt.charAt(i);
                 i++;
-                if(i >= txt.length) clearInterval(typeTimer);
-            }, 30);
+                // Auto scroll to bottom
+                document.querySelector('.dialogue-box').scrollTop = document.querySelector('.dialogue-box').scrollHeight;
+                if(i >= txt.length) clearInterval(timer);
+            }, 20);
         }
 
         function advanceStory() {
-            storyLineIndex++;
-            if (storyLineIndex >= currentStoryLines.length) {
-                playerState.currentLevelIndex++;
-                saveGame();
-                loadLevel(playerState.currentLevelIndex);
+            storyIndex++;
+            if(storyIndex >= currentStoryText.length) {
+                state.level++;
+                loadLevel();
             } else {
-                renderStoryText();
+                typeText(currentStoryText[storyIndex]);
             }
         }
 
-        // --- PUZZLE ENGINE ---
-        let puzzleState = { score: 0, target: 0, timer: 0, interval: null, levelData: null, sequence: [], userSeq: [] };
-        const COLORS = ['#ff003c', '#00ff41', '#00eaff', '#ffe600']; // Cyberpunk colors
-        const COLOR_NAMES = ['RED', 'GREEN', 'BLUE', 'YELLOW'];
+        // --- BASIC PUZZLE LOGIC ---
+        let pState = { score: 0, target: 0 };
+        const COLORS = ['#ff003c', '#00ff41', '#00eaff', '#ffe600'];
 
-        function startPuzzle(level) {
-            puzzleState.levelData = level;
-            puzzleState.score = 0;
-            puzzleState.target = level.rounds;
+        function startPuzzle(data) {
+            pState.score = 0;
+            pState.target = data.rounds;
             showScreen('screen-game');
-            document.getElementById('ui-req').innerText = level.rounds;
-            
-            if(level.mode === 'sequence') startSequenceRound();
-            else startReflexRound();
+            nextRound();
         }
 
-        // MODE: REFLEX (Match & Stroop)
-        function startReflexRound() {
-            if(puzzleState.score >= puzzleState.target) { completeLevel(); return; }
-
-            const container = document.getElementById('options-container');
-            container.innerHTML = '';
+        function nextRound() {
+            if(pState.score >= pState.target) { state.level++; loadLevel(); return; }
+            
+            const target = COLORS[Math.floor(Math.random() * COLORS.length)];
             const prompt = document.getElementById('prompt-display');
+            prompt.innerText = "";
+            prompt.style.background = target;
+            prompt.style.width = "100px"; prompt.style.height = "100px"; prompt.style.borderRadius = "50%";
             
-            // LOGIC FOR STROOP VS NORMAL
-            let targetColor = COLORS[Math.floor(Math.random() * COLORS.length)];
-            let isStroop = puzzleState.levelData.mode === 'stroop';
+            const container = document.getElementById('options-container');
+            container.innerHTML = "";
             
-            if(isStroop) {
-                let wrongNameIndex = Math.floor(Math.random() * COLOR_NAMES.length);
-                prompt.innerText = COLOR_NAMES[wrongNameIndex]; // Text says "RED"
-                prompt.style.color = targetColor; // But color is GREEN
-            } else {
-                prompt.innerText = "";
-                prompt.style.backgroundColor = targetColor;
-                prompt.style.width = "100px";
-                prompt.style.height = "100px";
-                prompt.style.borderRadius = "50%";
-                prompt.style.margin = "0 auto 30px auto";
-            }
-
-            // Generate Buttons
-            let options = [...COLORS];
-            options.sort(() => Math.random() - 0.5);
-            
-            options.forEach(col => {
-                const btn = document.createElement('div');
+            let opts = [...COLORS].sort(() => Math.random() - 0.5);
+            opts.forEach(c => {
+                let btn = document.createElement('div');
                 btn.className = 'tile';
-                btn.style.backgroundColor = col;
+                btn.style.background = c;
                 btn.onclick = () => {
-                    if(col === targetColor) {
-                        puzzleState.score++;
-                        document.getElementById('ui-req').innerText = puzzleState.target - puzzleState.score;
-                        startReflexRound();
-                    } else {
-                        tg.HapticFeedback.notificationOccurred('error');
-                        gameOver();
-                    }
+                    if(c === target) { pState.score++; nextRound(); }
+                    else { tg.HapticFeedback.notificationOccurred('error'); }
                 };
                 container.appendChild(btn);
             });
         }
 
-        // MODE: SEQUENCE (Simon Says)
-        function startSequenceRound() {
-            if(puzzleState.score >= puzzleState.target) { completeLevel(); return; }
-            
-            const container = document.getElementById('options-container');
-            container.innerHTML = '';
-            document.getElementById('prompt-display').innerText = "WATCH...";
-            document.getElementById('prompt-display').style.background = 'transparent';
-            
-            // Create static buttons
-            COLORS.forEach((col, idx) => {
-                const btn = document.createElement('div');
-                btn.className = 'tile';
-                btn.id = 'seq-btn-'+idx;
-                btn.style.backgroundColor = col;
-                btn.style.opacity = '0.3';
-                btn.onclick = () => checkSequence(idx);
-                container.appendChild(btn);
-            });
-
-            // Generate Sequence
-            let seqLength = 3 + puzzleState.score; // Gets harder
-            puzzleState.sequence = [];
-            puzzleState.userSeq = [];
-            
-            for(let i=0; i<seqLength; i++) {
-                puzzleState.sequence.push(Math.floor(Math.random() * 4));
-            }
-
-            // Play Sequence
-            let i = 0;
-            let interval = setInterval(() => {
-                if(i >= seqLength) {
-                    clearInterval(interval);
-                    document.getElementById('prompt-display').innerText = "REPEAT";
-                    COLORS.forEach((c, x) => document.getElementById('seq-btn-'+x).style.opacity = '1'); // Enable buttons
-                    return;
-                }
-                let id = puzzleState.sequence[i];
-                let btn = document.getElementById('seq-btn-'+id);
-                btn.style.opacity = '1';
-                setTimeout(() => btn.style.opacity = '0.3', 500);
-                i++;
-            }, 800);
-        }
-
-        function checkSequence(btnIndex) {
-            puzzleState.userSeq.push(btnIndex);
-            // Check if correct so far
-            if(puzzleState.userSeq[puzzleState.userSeq.length-1] !== puzzleState.sequence[puzzleState.userSeq.length-1]) {
-                gameOver();
-                return;
-            }
-            // Check if done
-            if(puzzleState.userSeq.length === puzzleState.sequence.length) {
-                puzzleState.score++;
-                startSequenceRound();
-            }
-        }
-
-        function completeLevel() {
-            playerState.currentLevelIndex++;
-            saveGame();
-            tg.showPopup({ title: 'System Stabilized', message: 'Memory restored.' }, () => loadLevel(playerState.currentLevelIndex));
-        }
-
-        function gameOver() {
-            tg.showPopup({ title: 'CRITICAL FAILURE', message: 'Neural link severed. Try again.' }, () => startPuzzle(puzzleState.levelData));
-        }
+        // Init
+        loadSettings();
 
     </script>
 </body>
